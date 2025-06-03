@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: 'default-dashboards' # 提供者的名称
+    orgId: 1 # 组织ID，默认为1
+    folder: '' # 仪表板将导入到的文件夹名称，空字符串表示根目录 (General)
+    type: file # 从文件系统加载
+    disableDeletion: false # 如果设置为true，从磁盘删除仪表板文件时，Grafana中的仪表板不会被删除
+    editable: true # 是否允许在UI中编辑这些仪表板
+    options:
+      path: /var/lib/grafana/dashboards # Docker容器内仪表板JSON文件的路径
+      # path: /etc/grafana/provisioning/dashboards # 如果你把json文件放在这个目录下

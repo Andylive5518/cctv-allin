@@ -1,0 +1,70 @@
+# .gitignore for CCTV Monitoring Platform
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+venv/
+ENV/
+env/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker & Data
+# Do not commit actual data volumes by default
+# If you have specific data files that NEED to be versioned (e.g. small initial datasets),
+# unignore them explicitly: !data/my_initial_data.json
+data/*
+!data/.gitkeep # Keep the data directory, but ignore its contents
+
+# Logs
+logs/
+*.log
+
+# Prometheus data (time series database)
+# This can grow very large, typically not versioned
+prometheus_data/
+
+# Grafana data (SQLite DB, plugin cache, etc.)
+# grafana_data/
+
+# MySQL data
+# mysql_data/
+
+# Zabbix specific data (if mounted outside of typical data dir)
+# zabbix_server_data/
+# zabbix_web_data/
+
+# Temporary files
+*.tmp
+*.bak
+*.DS_Store
+
+# Build artifacts (if any)
+dist/
+build/
+*.egg-info/
+
+# Secrets and sensitive configuration
+# Webhook URLs, API keys, passwords should be in .env or secure vault, not versioned.
+# Example: if you had a local_secrets.yml
+# local_secrets.yml
+
+# Prometheus file_sd generated files (these are dynamically created)
+# configs/prometheus/file_sd/*
+# !configs/prometheus/file_sd/.gitkeep
+
+# Notification service logs (if configured to write to file)
+scripts/notification/logs/
+
+# Coverage reports
+htmlcov/
+.coverage

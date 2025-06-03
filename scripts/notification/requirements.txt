@@ -1,0 +1,13 @@
+Flask>=2.0
+requests>=2.25
+PyYAML>=5.0
+# 根据选择的通知库添加，例如：
+# dingtalkchatbot>=1.5.7  # 如果直接使用钉钉SDK
+# wechatpy>=1.8.0       # 如果直接使用企业微信SDK
+# feishu-sdk>=1.0       # 如果直接使用飞书SDK
+
+# 为了简单起见，此示例将使用requests直接调用Webhook URL
+# 如果需要更复杂的逻辑或SDK特性，可以取消注释并添加相应的库
+
+# 现有依赖...
+redis>=4.5.0

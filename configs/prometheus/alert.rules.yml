@@ -1,0 +1,92 @@
+groups:
+- name: device_alerts
+  rules:
+  - alert: DeviceDown
+    expr: probe_success == 0 or up == 0 or snmp_up == 0 # probe_success (blackbox), up (general), snmp_up (snmp_exporter)
+    for: 1m # 持续1分钟设备不可达则告警 (3次检测失败，每次30秒，约1.5分钟，这里设为1分钟快速触发)
+    labels:
+      severity: critical
+      product: cctv_monitoring
+      component: network_device
+    annotations:
+      summary: "设备掉线: {{ $labels.instance }} ({{ $labels.job }})"
+      description: "设备 {{ $labels.instance }} (类型: {{ $labels.job }}) 已经连续 {{ $value }} 次检测失败，最后检测时间 {{ $labels.timestamp }}. 请立即检查网络连接或设备电源。"
+      value: "{{ $value }}"
+      check_url: "{{ $labels.instance }}"
+      action_required: "请检查设备 {{ $labels.instance }} 的网络连接、电源状态和相关日志。"
+
+  - alert: HighPingLatency
+    expr: probe_duration_seconds > 5 # Ping延迟超过5秒
+    for: 1m
+    labels:
+      severity: warning
+      product: cctv_monitoring
+      component: network_device
+    annotations:
+      summary: "高Ping延迟: {{ $labels.instance }} ({{ $labels.job }})"
+      description: "设备 {{ $labels.instance }} 的Ping延迟为 {{ $value }} 秒，已超过阈值5秒。请检查网络状况。"
+      value: "{{ $value }}s"
+      check_url: "{{ $labels.instance }}"
+
+  - alert: HttpProbeFailed
+    expr: probe_http_status_code != 200 and probe_success == 1 # HTTP探测成功但状态码非200
+    for: 1m
+    labels:
+      severity: warning
+      product: cctv_monitoring
+      component: network_device
+    annotations:
+      summary: "HTTP探测失败: {{ $labels.instance }} ({{ $labels.job }})"
+      description: "设备 {{ $labels.instance }} 的HTTP探测返回状态码 {{ $labels.probe_http_status_code }}，期望为200。请检查设备服务。"
+      value: "HTTP Status {{ $labels.probe_http_status_code }}"
+      check_url: "{{ $labels.instance }}"
+
+  # Zabbix相关告警 (如果Prometheus抓取Zabbix指标)
+  # 假设Zabbix暴露的指标名为 zabbix_problem_count{host="hostname", severity="High"}
+  - alert: ZabbixHighSeverityProblem
+    expr: zabbix_problem_count{severity=~"High|Disaster|Average"} > 0
+    for: 1m
+    labels:
+      severity: critical
+      product: cctv_monitoring
+      component: zabbix_integration
+    annotations:
+      summary: "Zabbix告警: {{ $labels.host }} ({{ $labels.severity }})"
+      description: "Zabbix检测到主机 {{ $labels.host }} 存在 {{ $labels.severity }} 级别的告警。请登录Zabbix查看详情。"
+      zabbix_host: "{{ $labels.host }}"
+      zabbix_severity: "{{ $labels.severity }}"
+
+  # SNMP Exporter specific alerts (example)
+  - alert: SnmpDeviceUnreachable
+    expr: snmp_scrape_error == 1 # SNMP Exporter无法抓取设备数据
+    for: 2m
+    labels:
+      severity: critical
+      product: cctv_monitoring
+      component: snmp_device
+    annotations:
+      summary: "SNMP设备不可达: {{ $labels.instance }}"
+      description: "SNMP Exporter无法从设备 {{ $labels.instance }} 抓取数据。请检查SNMP配置和网络连接。"
+      value: "Scrape error"
+      check_url: "{{ $labels.instance }}"
+
+  # Alertmanager自身告警
+  - alert: AlertmanagerConfigReloadFailed
+    expr: alertmanager_config_last_reload_successful == 0
+    labels:
+      severity: critical
+      product: cctv_monitoring
+      component: alertmanager
+    annotations:
+      summary: Alertmanager配置重载失败
+      description: Alertmanager未能成功重载其配置文件。
+
+  - alert: AlertmanagerNotificationFailed
+    expr: rate(alertmanager_notifications_failed_total[1m]) > 0
+    labels:
+      severity: warning
+      product: cctv_monitoring
+      component: alertmanager
+    annotations:
+      summary: Alertmanager通知发送失败
+      description: Alertmanager在过去1分钟内发送通知失败。

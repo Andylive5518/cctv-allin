@@ -1,0 +1,281 @@
+version: '3.8'
+
+services:
+  # MySQL数据库 - Zabbix后端存储
+  mysql:
+    image: mysql:8.0
+    container_name: cctv-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-zabbix}
+      MYSQL_USER: ${MYSQL_USER:-zabbix}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-zabbixpassword}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./configs/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - monitoring
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Zabbix Server - 主监控服务
+  zabbix-server:
+    image: zabbix/zabbix-server-mysql:alpine-6.4-latest
+    container_name: cctv-zabbix-server
+    environment:
+      DB_SERVER_HOST: mysql
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-zabbix}
+      MYSQL_USER: ${MYSQL_USER:-zabbix}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-zabbixpassword}
+      ZBX_ENABLE_SNMP_TRAPS: "true"
+      ZBX_STARTPINGERS: 10
+      ZBX_STARTPOLLERS: 20
+      ZBX_STARTPOLLERSUNREACHABLE: 5
+      ZBX_STARTTRAPPERS: 10
+      ZBX_STARTDISCOVERERS: 5
+    volumes:
+      - zabbix_server_data:/var/lib/zabbix
+      - ./configs/zabbix/server:/etc/zabbix:ro
+    networks:
+      - monitoring
+    ports:
+      - "10051:10051"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Zabbix Web界面
+  zabbix-web:
+    image: zabbix/zabbix-web-apache-mysql:alpine-6.4-latest
+    container_name: cctv-zabbix-web
+    environment:
+      ZBX_SERVER_HOST: zabbix-server
+      DB_SERVER_HOST: mysql
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-zabbix}
+      MYSQL_USER: ${MYSQL_USER:-zabbix}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-zabbixpassword}
+      PHP_TZ: Asia/Shanghai
+    volumes:
+      - ./configs/zabbix/web:/etc/zabbix/web:ro
+    networks:
+      - monitoring
+    ports:
+      - "8080:8080"
+    depends_on:
+      - zabbix-server
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Prometheus - 指标收集
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: cctv-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    volumes:
+      - ./configs/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Alertmanager - 报警管理
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    container_name: cctv-alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    volumes:
+      - ./configs/alertmanager:/etc/alertmanager:ro
+      - alertmanager_data:/alertmanager
+    networks:
+      - monitoring
+    ports:
+      - "9093:9093"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+
+  # SNMP Exporter - SNMP设备监控
+  snmp-exporter:
+    image: prom/snmp-exporter:v0.21.0
+    container_name: cctv-snmp-exporter
+    volumes:
+      - ./configs/snmp-exporter:/etc/snmp_exporter:ro
+    networks:
+      - monitoring
+    ports:
+      - "9116:9116"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+  # Blackbox Exporter - HTTP/ICMP探测
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.24.0
+    container_name: cctv-blackbox-exporter
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'
+    volumes:
+      - ./configs/blackbox-exporter:/etc/blackbox_exporter:ro
+    networks:
+      - monitoring
+    ports:
+      - "9115:9115"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+  # Grafana - 可视化界面
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: cctv-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+      GF_SERVER_ROOT_URL: http://localhost:3000
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com:587}
+      GF_SMTP_USER: ${SMTP_USER:-}
+      GF_SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - monitoring
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Node Exporter - 系统监控
+  node-exporter:
+    image: prom/node-exporter:v1.6.0
+    container_name: cctv-node-exporter
+    command:
+      - '--path.rootfs=/host'
+    volumes:
+      - '/:/host:ro,rslave'
+    networks:
+      - monitoring
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 64M
+
+  # 通知服务 - 自定义报警通知
+  notification-service:
+    build:
+      context: ./scripts/notification
+      dockerfile: Dockerfile
+    container_name: cctv-notification
+    environment:
+      DINGTALK_WEBHOOK: ${DINGTALK_WEBHOOK:-}
+      WECHAT_WEBHOOK: ${WECHAT_WEBHOOK:-}
+      FEISHU_WEBHOOK: ${FEISHU_WEBHOOK:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./configs/notification:/app/config:ro
+      - notification_logs:/app/logs
+    networks:
+      - monitoring
+    ports:
+      - "8888:8888"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+networks:
+  monitoring:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# 在services部分添加Redis服务
+redis:
+  image: redis:7-alpine
+  container_name: cctv-redis
+  restart: unless-stopped
+  ports:
+    - "6379:6379"
+  volumes:
+    - redis_data:/data
+  command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+  networks:
+    - monitoring
+  deploy:
+    resources:
+      limits:
+        memory: 512M
+      reservations:
+        memory: 256M
+
+# 在volumes部分添加Redis数据卷
+volumes:
+  mysql_data:
+    driver: local
+  zabbix_server_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+  grafana_data:
+    driver: local
+  notification_logs:
+    driver: local
+  redis_data:
+    driver: local

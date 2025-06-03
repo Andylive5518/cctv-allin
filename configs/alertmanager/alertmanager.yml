@@ -1,0 +1,98 @@
+global:
+  resolve_timeout: 5m
+  # 钉钉、企业微信、飞书的Webhook URL从环境变量读取，或者直接配置在这里
+  # dingtalk_api_url: 'https://oapi.dingtalk.com/robot/send?access_token=YOUR_DINGTALK_TOKEN'
+  # wechat_api_url: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_WECHAT_KEY'
+  # feishu_api_url: 'https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_FEISHU_HOOK_ID'
+
+route:
+  group_by: ['alertname', 'severity', 'job']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 1h # 对于相同的告警，1小时后才重复发送
+  receiver: 'default-receiver' # 默认接收器
+  routes:
+    - receiver: 'dingtalk-notifications'
+      match_re:
+        severity: critical|warning # 匹配critical或warning级别的告警
+      continue: true # 继续匹配其他路由
+
+    - receiver: 'wechat-notifications'
+      match_re:
+        severity: critical # 只匹配critical级别的告警
+      continue: true
+
+    - receiver: 'feishu-notifications'
+      match_re:
+        severity: critical # 只匹配critical级别的告警
+      continue: true
+
+    # 可以为特定job或alertname配置不同的接收器
+    - receiver: 'zabbix-alerts-receiver'
+      match:
+        component: zabbix_integration
+
+receivers:
+- name: 'default-receiver' # 默认接收器，可以配置一个通用的通知方式，比如邮件
+  # email_configs:
+  # - to: 'admin@example.com'
+  #   from: 'alertmanager@example.com'
+  #   smarthost: 'smtp.example.com:587'
+  #   auth_username: 'alertmanager'
+  #   auth_password: 'password'
+  #   require_tls: true
+  webhook_configs:
+  - url: 'http://notification-service:8888/webhook/default' # 发送到自定义通知服务
+    send_resolved: true
+
+- name: 'dingtalk-notifications'
+  webhook_configs:
+  - url: 'http://notification-service:8888/webhook/dingtalk' # 发送到自定义通知服务的钉钉接口
+    send_resolved: true
+    # 如果直接对接钉钉机器人，则使用下面的配置，并确保global.dingtalk_api_url已设置
+    # http_config:
+    #   bearer_token: YOUR_DINGTALK_TOKEN # 如果钉钉机器人有签名校验，可能需要其他配置
+    # template: |
+    #   {{ define "dingtalk.default.message" }}
+    #   {
+    #     "msgtype": "markdown",
+    #     "markdown": {
+    #       "title": "[{{ .Status | toUpper }}{{ if eq .Status \"firing\" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }} for {{ .CommonLabels.job }}",
+    #       "text": "#### [{{ .Status | toUpper }}{{ if eq .Status \"firing\" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }} for {{ .CommonLabels.job }}\n\n{{ range .Alerts -}}
+**告警名称**: {{ .Labels.alertname }}\n
+**级别**: {{ .Labels.severity }}\n
+**实例**: {{ .Labels.instance }}\n
+**摘要**: {{ .Annotations.summary }}\n
+**描述**: {{ .Annotations.description }}\n
+**开始时间**: {{ .StartsAt.Format \"2006-01-02 15:04:05\" }}\n
+[查看Grafana](http://localhost:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Prometheus%22,%7B%22expr%22:%22{{ .Labels.alertname }}{{ .CommonLabels }}%22%7D%5D)\n\n---\n{{ end }}"
+    #     },
+    #     "at": {
+    #       "isAtAll": false
+    #     }
+    #   }
+    #   {{ end }}
+
+- name: 'wechat-notifications'
+  webhook_configs:
+  - url: 'http://notification-service:8888/webhook/wechat'
+    send_resolved: true
+
+- name: 'feishu-notifications'
+  webhook_configs:
+  - url: 'http://notification-service:8888/webhook/feishu'
+    send_resolved: true
+
+- name: 'zabbix-alerts-receiver'
+  webhook_configs:
+  - url: 'http://notification-service:8888/webhook/zabbix' # 专门处理Zabbix告警的接口
+    send_resolved: true
+
+# 抑制规则 (可选)
+# inhibit_rules:
+#   - target_match:
+#       severity: 'critical'
+#     source_match:
+#       severity: 'warning'
+#     # 如果一个实例同时有critical和warning告警，则抑制warning告警
+#     equal: ['alertname', 'cluster', 'service']

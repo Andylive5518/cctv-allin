@@ -1,0 +1,86 @@
+# configs/devices.yml
+# 设备清单示例文件
+# 由 device_discovery.py 脚本使用，生成Prometheus的服务发现配置文件
+
+- name: "Core-Switch-01"
+  ip: "192.168.1.1"
+  type: "switch" # 设备类型，自定义
+  enable_snmp: true
+  snmp_community: "your_snmp_community"
+  snmp_module: "switch_standard" # 对应 snmp-exporter/snmp.yml 中的模块
+  check_type: "icmp" # 主要健康检查方式 (icmp, http, https)
+  modules: # Blackbox Exporter 检查模块列表
+    - "icmp_ping"
+    # - "http_2xx" # 如果交换机有Web界面
+  # http_port: 80
+  # http_path: "/"
+
+- name: "Access-Point-Lobby"
+  ip: "192.168.1.10"
+  type: "ap"
+  enable_snmp: true
+  snmp_community: "your_snmp_community"
+  snmp_module: "default" # 使用默认SNMP模块
+  check_type: "icmp"
+  modules:
+    - "icmp_ping"
+    - "http_2xx" # AP通常有Web管理界面
+  http_port: 80
+
+- name: "Camera-Entrance-01"
+  ip: "192.168.1.101"
+  type: "ip_camera"
+  enable_snmp: true # 假设摄像头支持SNMP
+  snmp_community: "public"
+  snmp_module: "camera_generic" # 对应 snmp-exporter/snmp.yml 中的模块
+  check_type: "http" # 主要检查HTTP服务是否正常
+  modules:
+    - "icmp_ping"
+    - "camera_http_check" # 使用特定的摄像头HTTP检查模块
+  camera_http_port: 80
+  # camera_http_path: "/stw-cgi/video.cgi?msubmenu=snapshot&action=view&chn=0" # 海康示例
+  # camera_http_path: "/cgi-bin/snapshot.cgi" # 大华示例
+
+- name: "Camera-Corridor-02"
+  ip: "192.168.1.102"
+  type: "ip_camera"
+  enable_snmp: false # 此摄像头可能不支持SNMP或不启用
+  check_type: "icmp"
+  modules:
+    - "icmp_ping"
+    - "http_2xx" # 通用HTTP检查
+  http_port: 8080 # 假设此摄像头Web服务在8080端口
+
+- name: "NVR-Main-Building"
+  ip: "192.168.1.200"
+  type: "nvr"
+  enable_snmp: true
+  snmp_community: "your_snmp_community"
+  snmp_module: "nvr_generic" # 对应 snmp-exporter/snmp.yml 中的模块
+  check_type: "http"
+  modules:
+    - "icmp_ping"
+    - "nvr_api_check" # 使用特定的NVR API检查模块
+  http_port: 80
+  # http_path: "/SDK/ TavaAPI" # 示例NVR API路径
+
+- name: "Monitoring-Server"
+  ip: "192.168.1.50" # 假设这是运行Prometheus等服务的主机
+  type: "server"
+  enable_snmp: false # 通常由Node Exporter监控，而非SNMP
+  check_type: "http"
+  modules:
+    - "icmp_ping"
+    - "http_2xx" # 检查Prometheus UI是否可访问
+  http_port: 9090 # Prometheus端口
+  http_path: "/"
+
+# - name: "External-Website"
+#   ip: "www.example.com" # 可以是域名
+#   type: "external_service"
+#   enable_snmp: false
+#   check_type: "http"
+#   modules:
+#     - "http_2xx"
+#   # 注意：对于外部域名，Blackbox Exporter 会进行DNS解析
+#   # 如果是内部服务且依赖内部DNS，确保Blackbox Exporter容器可以解析

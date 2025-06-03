@@ -1,0 +1,11 @@
+-- 这个文件可以为空，因为Zabbix Docker镜像会自动处理数据库的初始化。
+-- 如果需要自定义初始化逻辑（例如创建额外的用户或数据库），可以在这里添加SQL语句。
+-- 例如:
+-- CREATE DATABASE IF NOT EXISTS another_db;
+-- CREATE USER IF NOT EXISTS 'another_user'@'%' IDENTIFIED BY 'another_password';
+-- GRANT ALL PRIVILEGES ON another_db.* TO 'another_user'@'%';
+-- FLUSH PRIVILEGES;
+
+-- Zabbix Server和Web服务会自己连接到指定的数据库并创建必要的表结构。
+-- 确保docker-compose.yml中MySQL服务的环境变量 (MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD)
+-- 与Zabbix Server/Web服务中配置的数据库连接信息一致。

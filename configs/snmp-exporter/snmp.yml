@@ -1,0 +1,156 @@
+# 默认模块，适用于大多数网络设备的基本信息
+default:
+  walk: # 要进行SNMP walk的OID列表
+    - sysUpTime
+    - interfaces
+    - ifXTable
+    - sysDescr
+    - sysName
+    - sysContact
+    - sysLocation
+    - hrSystemUptime  # Host Resources MIB, 系统启动时间
+    - hrStorageTable  # Host Resources MIB, 存储信息
+    - hrProcessorTable # Host Resources MIB, CPU信息
+  lookups: # 用于将OID值转换为更易读的标签
+    - oid: 1.3.6.1.2.1.1.1.0 # sysDescr
+      label: sysDescr
+    - oid: 1.3.6.1.2.1.1.5.0 # sysName
+      label: sysName
+    - oid: 1.3.6.1.2.1.2.2.1.2 # ifDescr (接口描述)
+      label: ifDescr
+    - oid: 1.3.6.1.2.1.2.2.1.8 # ifOperStatus (接口操作状态)
+      label: ifOperStatus
+      enum_values:
+        1: up
+        2: down
+        3: testing
+        4: unknown
+        5: dormant
+        6: notPresent
+        7: lowerLayerDown
+  metrics:
+    - name: sysUpTime
+      oid: 1.3.6.1.2.1.1.3
+      type: gauge
+      help: The time (in hundredths of a second) since the network management portion of the system was last re-initialized.
+    - name: ifNumber
+      oid: 1.3.6.1.2.1.2.1
+      type: gauge
+      help: The number of network interfaces (regardless of their current state) present on this system.
+    # 接口流量统计
+    - name: ifInOctets
+      oid: 1.3.6.1.2.1.2.2.1.10
+      type: counter
+      help: The total number of octets received on the interface, including framing characters.
+      indexes:
+        - labelname: ifDescr
+          type: DisplayString
+    - name: ifOutOctets
+      oid: 1.3.6.1.2.1.2.2.1.16
+      type: counter
+      help: The total number of octets transmitted out of the interface, including framing characters.
+      indexes:
+        - labelname: ifDescr
+          type: DisplayString
+    # 接口状态
+    - name: ifOperStatus
+      oid: 1.3.6.1.2.1.2.2.1.8
+      type: gauge
+      help: The current operational state of the interface.
+      indexes:
+        - labelname: ifDescr
+          type: DisplayString
+      lookups:
+        - labels: [ifOperStatus]
+          labelname: ifOperStatus_name
+          oid: 1.3.6.1.2.1.2.2.1.8
+          type: EnumAsInfo
+
+# 交换机专用模块 (示例)
+switch_standard:
+  walk:
+    - 1.3.6.1.2.1.17 # Bridge MIB for STP, MAC table etc.
+    - 1.3.6.1.2.1.31 # IF-MIB (补充接口信息，如64位计数器)
+  metrics:
+    - name: dot1dStpPortState
+      oid: 1.3.6.1.2.1.17.2.15.1.3
+      type: gauge
+      help: The current state of the bridge port (STP).
+      indexes:
+        - labelname: dot1dStpPort
+          type: Integer
+      lookups:
+        - labels: [dot1dStpPortState]
+          labelname: dot1dStpPortState_name
+          oid: 1.3.6.1.2.1.17.2.15.1.3
+          type: EnumAsInfo
+          enum_values:
+            1: disabled
+            2: blocking
+            3: listening
+            4: learning
+            5: forwarding
+            6: broken
+
+# IP摄像头专用模块 (示例，具体OID需查阅设备手册)
+camera_generic:
+  walk:
+    - 1.3.6.1.2.1.1.1 # sysDescr
+    - 1.3.6.1.2.1.1.3 # sysUpTime
+    # - <摄像头厂商私有MIB OID，例如视频流状态、录像状态等>
+  metrics:
+    - name: cameraStatus
+      # oid: <摄像头状态OID>
+      type: gauge
+      help: Status of the IP camera (e.g., 1=OK, 2=Error, 3=Recording).
+      # lookups: ...
+
+# NVR专用模块 (示例，具体OID需查阅设备手册)
+nvr_generic:
+  walk:
+    - 1.3.6.1.2.1.1.1 # sysDescr
+    - 1.3.6.1.2.1.1.3 # sysUpTime
+    - hrStorageTable # 存储空间
+    # - <NVR厂商私有MIB OID，例如通道状态、磁盘健康度等>
+  metrics:
+    - name: nvrChannelStatus
+      # oid: <NVR通道状态OID>
+      type: gauge
+      help: Status of NVR channels.
+      # indexes: ...
+      # lookups: ...
+    - name: nvrDiskFreeBytes
+      oid: 1.3.6.1.2.1.25.2.3.1.6 # hrStorageUsed (converted to free)
+      type: gauge
+      help: Free disk space on NVR in bytes.
+      indexes:
+        - labelname: hrStorageDescr
+          type: DisplayString
+
+# if_mib 模块，通常是默认的，但可以显式定义以覆盖或扩展
+if_mib:
+  walk:
+    - interfaces
+    - ifXTable # 包含64位计数器等更详细的接口信息
+  metrics:
+    - name: ifAlias
+      oid: 1.3.6.1.2.1.31.1.1.1.18
+      type: DisplayString
+      help: The alias of the interface.
+      indexes:
+        - labelname: ifDescr
+          type: DisplayString
+    - name: ifHCInOctets # 64位计数器
+      oid: 1.3.6.1.2.1.31.1.1.1.6
+      type: counter
+      help: The total number of octets received on the interface, including framing characters (64-bit counter).
+      indexes:
+        - labelname: ifDescr
+          type: DisplayString
+    - name: ifHCOutOctets # 64位计数器
+      oid: 1.3.6.1.2.1.31.1.1.1.10
+      type: counter
+      help: The total number of octets transmitted out of the interface, including framing characters (64-bit counter).
+      indexes:
+        - labelname: ifDescr
+          type: DisplayString

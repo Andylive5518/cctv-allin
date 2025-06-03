@@ -1,0 +1,89 @@
+modules:
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      valid_status_codes: [200] # 只接受200为成功状态码
+      method: GET
+      # preferred_ip_protocol: "ip4" # 可选: ipv4 or ipv6
+      # no_follow_redirects: false
+      # fail_if_ssl: false
+      # fail_if_not_ssl: false
+      # tls_config:
+      #   insecure_skip_verify: false # 设置为true则跳过TLS证书验证
+      # headers:
+      #   Host: example.com
+      #   Authorization: "Bearer <token>"
+
+  http_post_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      method: POST
+      headers:
+        Content-Type: application/json
+      body: '{"status":"check"}'
+      valid_status_codes: [200, 201, 204]
+
+  icmp:
+    prober: icmp
+    timeout: 10s
+    icmp:
+      # preferred_ip_protocol: "ip4" # 可选: ipv4 or ipv6
+      # source_ip_address: "192.168.1.100"
+      # payload_size: 120
+      # dont_fragment: true
+      # ttl: 64
+
+  icmp_ping:
+    prober: icmp
+    timeout: 10s
+    icmp:
+      preferred_ip_protocol: "ip4"
+      payload_size: 64
+
+  tcp_connect:
+    prober: tcp
+    timeout: 10s
+    tcp:
+      # preferred_ip_protocol: "ip4"
+      # source_ip_address: "192.168.1.100"
+      # query_response:
+      #  - expect: "^220.*ESMTP"
+      #  - send: "EHLO prober"
+      #  - expect: "^250-STARTTLS"
+      #  - send: "STARTTLS"
+      #  - expect: "^220"
+      # tls: true
+      # tls_config:
+      #   insecure_skip_verify: false
+
+  # 可以为不同类型的摄像头或NVR定义不同的HTTP探测模块
+  camera_http_check:
+    prober: http
+    timeout: 15s
+    http:
+      valid_http_versions: ["HTTP/1.0", "HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200, 301, 302] # 某些摄像头可能返回重定向
+      method: GET
+      fail_if_body_not_matches_regexp:
+        - "Login"
+        - "Username"
+        # 根据摄像头登录页面的特征添加正则表达式
+      tls_config:
+        insecure_skip_verify: true # 很多摄像头使用自签名证书
+
+  nvr_api_check:
+    prober: http
+    timeout: 20s
+    http:
+      method: POST
+      headers:
+        Content-Type: application/json
+        # X-Auth-Token: some_token # 如果NVR API需要认证
+      body: '{"command":"get_status"}' # 示例API请求体
+      valid_status_codes: [200]
+      fail_if_body_not_matches_regexp:
+        - '"status":"ok"'
+      tls_config:
+        insecure_skip_verify: true

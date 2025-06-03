@@ -1,0 +1,17 @@
+# scripts/notification/config/notification_config.yml
+# 此文件用于配置通知服务的Webhook URL，如果不想通过环境变量配置，可以在这里填写
+# Docker容器启动时，会将此目录下的configs/notification映射到容器内的/app/config
+
+# 钉钉机器人Webhook URL
+# dingtalk_webhook: "https://oapi.dingtalk.com/robot/send?access_token=YOUR_DINGTALK_ACCESS_TOKEN"
+
+# 企业微信机器人Webhook URL
+# wechat_webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_WECHAT_ROBOT_KEY"
+
+# 飞书机器人Webhook URL
+# feishu_webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_FEISHU_BOT_HOOK_ID"
+
+# 示例：
+# dingtalk_webhook: "your_dingtalk_webhook_url_here"
+# wechat_webhook: "your_wechat_webhook_url_here"
+# feishu_webhook: "your_feishu_webhook_url_here"
